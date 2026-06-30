@@ -1,0 +1,15 @@
+{"id": "math-001", "prompt": "What is 23 * 47?", "answer": "1081", "task_type": "math"}
+{"id": "math-002", "prompt": "If a train travels 60 mph for 2.5 hours, how far does it go? Give the number only.", "answer": "150", "task_type": "math"}
+{"id": "math-003", "prompt": "What is 15 percent of 240?", "answer": "36", "task_type": "math"}
+{"id": "ext-001", "prompt": "Extract the email from: Contact john.doe@example.com for details.", "answer": "john.doe@example.com", "task_type": "extraction"}
+{"id": "ext-002", "prompt": "What is the city in: She moved to Lisbon in 2019.", "answer": "Lisbon", "task_type": "extraction"}
+{"id": "ext-003", "prompt": "Find the number in: The package weighs 4.7 kilograms.", "answer": "4.7", "task_type": "extraction"}
+{"id": "qa-001", "prompt": "What is the capital of France? One word.", "answer": "Paris", "task_type": "short_qa"}
+{"id": "qa-002", "prompt": "Who wrote the play Hamlet? Last name only.", "answer": "Shakespeare", "task_type": "short_qa"}
+{"id": "qa-003", "prompt": "What is the chemical symbol for gold?", "answer": "Au", "task_type": "short_qa"}
+{"id": "cls-001", "prompt": "Classify the sentiment of: This movie was absolutely fantastic! Answer: positive, negative, or neutral.", "answer": "positive", "task_type": "classification"}
+{"id": "cls-002", "prompt": "Is this true or false: The Sun is a planet.", "answer": "false", "task_type": "classification"}
+{"id": "reas-001", "prompt": "If all roses are flowers and some flowers fade quickly, can we conclude that some roses fade quickly? Answer yes or no.", "answer": "no", "task_type": "reasoning"}
+{"id": "reas-002", "prompt": "Alice is older than Bob. Bob is older than Carol. Who is the youngest?", "answer": "Carol", "task_type": "reasoning"}
+{"id": "code-001", "prompt": "Write a Python one-liner that returns the sum of squares of numbers 1 to 10.", "answer": "385", "task_type": "code"}
+{"id": "code-002", "prompt": "What does this return: len('hello world'.split())", "answer": "2", "task_type": "code"}

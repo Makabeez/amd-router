@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.envrc
+*.log
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# HF / model cache
+.cache/
+hf_cache/
+models/
+
+# Eval artifacts
+bench_results.json
+calibration.json
+traces.jsonl
+predictions.jsonl

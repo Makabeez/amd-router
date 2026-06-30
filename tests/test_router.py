@@ -1,0 +1,91 @@
+"""Smoke tests for router primitives. Run with: python -m pytest tests/ -v"""
+
+from __future__ import annotations
+
+from src.backends.fireworks import MockBackend
+from src.backends.base import GenerationResult
+from src.classifiers.confidence import (
+    _canonicalize,
+    assess,
+    logprob_confidence,
+    self_consistency,
+)
+from src.classifiers.heuristic import TaskType, classify
+from src.escalation.policies import ThresholdPolicy
+from src.router.hybrid import HybridConfig, HybridRouter
+
+
+def test_classify_math():
+    f = classify("What is 23 * 47?")
+    assert f.type == TaskType.MATH
+    assert f.has_numbers
+
+
+def test_classify_code():
+    f = classify("def fib(n):\n    ```python\n    return n")
+    assert f.type == TaskType.CODE
+    assert f.has_code
+
+
+def test_classify_extraction():
+    f = classify("Extract the date from this text: Born March 14, 1879.")
+    assert f.type == TaskType.EXTRACTION
+
+
+def test_canonicalize_numeric():
+    assert _canonicalize("42") == "42"
+    assert _canonicalize("42.0") == "42"
+    assert _canonicalize("3.14159") == "3.14159"
+    assert _canonicalize(" 42 .") == "42"
+
+
+def test_self_consistency_voting():
+    results = [
+        GenerationResult(text="42"),
+        GenerationResult(text="42"),
+        GenerationResult(text="43"),
+    ]
+    agree, top = self_consistency(results)
+    assert top == "42"
+    assert agree == 2 / 3
+
+
+def test_logprob_confidence():
+    r = GenerationResult(text="ok", logprobs=[-0.1, -0.2])
+    conf = logprob_confidence(r)
+    assert 0.0 < conf < 1.0
+
+
+def test_router_local_path():
+    local = MockBackend(name="local", canned="42")
+    local.is_remote = False
+    remote = MockBackend(name="remote", canned="42-remote")
+    remote.is_remote = True
+
+    # Force always-local path via easy task + lenient policy
+    policy = ThresholdPolicy(min_confidence=0.0, preflight_skip_local_above=1.1)
+    router = HybridRouter(local=local, remote=remote, policy=policy)
+
+    trace = router.route("What is 2 + 2?")
+    assert trace.remote_tokens == 0
+    assert "42" in trace.final_text
+
+
+def test_router_remote_escalation():
+    local = MockBackend(name="local", canned="wrong")
+    local.is_remote = False
+    remote = MockBackend(name="remote", canned="correct")
+    remote.is_remote = True
+
+    # Force escalation: impossible confidence threshold everywhere
+    policy = ThresholdPolicy(
+        min_confidence=2.0,
+        preflight_skip_local_above=1.1,
+        per_task_min_confidence={},  # disable per-task overrides
+    )
+    router = HybridRouter(local=local, remote=remote, policy=policy)
+
+    trace = router.route("Anything")
+    assert trace.final_backend == "remote"
+    assert trace.final_text == "correct"
+    assert any("escalate=True" in d for d in trace.decisions)

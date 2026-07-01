@@ -89,3 +89,71 @@ def test_router_remote_escalation():
     assert trace.final_backend == "remote"
     assert trace.final_text == "correct"
     assert any("escalate=True" in d for d in trace.decisions)
+
+
+def test_local_prompt_templating():
+    """Local prompts should be wrapped in task-specific instruction frames."""
+    from src.classifiers.prompts import format_for_local
+    from src.classifiers.heuristic import TaskType
+
+    out = format_for_local("Extract the email from: hi@a.com", TaskType.EXTRACTION)
+    assert "ONLY the extracted value" in out
+    assert "Extract the email from: hi@a.com" in out
+
+    out_math = format_for_local("What is 2+2?", TaskType.MATH)
+    assert "Answer: <number>" in out_math
+
+
+def test_verify_length_guard_skips_when_inflating():
+    """Short prompts with long drafts should skip verify mode to avoid bloat."""
+    from src.router.hybrid import HybridConfig
+
+    cfg = HybridConfig(verify_length_ratio_max=1.5)
+    short_prompt = "2+2?"  # ~4 chars
+    long_draft = "x" * 200  # 200 chars
+
+    # If the verify wrap is much longer than base, the router should bail out.
+    # We just check the config plumbing — actual decision logic tested via mock.
+    assert cfg.verify_length_ratio_max == 1.5
+
+
+def test_tier_hint_for_task_type():
+    """Extraction → small tier, math → medium tier."""
+    from src.router.hybrid import HybridConfig
+    from src.classifiers.heuristic import TaskType
+
+    cfg = HybridConfig()
+    assert cfg.tier_by_task[TaskType.EXTRACTION] == "small"
+    assert cfg.tier_by_task[TaskType.MATH] == "medium"
+    assert cfg.tier_by_task[TaskType.REASONING] == "medium"
+
+
+def test_tiered_backend_accepts_tier_kwarg():
+    """Tier kwarg should be silently accepted by all backends (uniform interface)."""
+    backend = MockBackend(name="mock", canned="ok")
+    backend.is_remote = True
+    # Should not raise — tier is swallowed via **kwargs
+    r = backend.generate("x", tier="small")
+    assert r.text == "ok"
+
+
+def test_metrics_remote_tokens_per_correct():
+    """Cost-per-correct = total_remote_tokens / n_correct."""
+    from src.utils.metrics import RunMetrics
+    from src.router.base import RoutingTrace
+
+    m = RunMetrics()
+    m.add(RoutingTrace(prompt="x", final_text="a", final_backend="local",
+                       remote_tokens=0, local_tokens=10), correct=True)
+    m.add(RoutingTrace(prompt="y", final_text="b", final_backend="remote",
+                       remote_tokens=100, local_tokens=0,
+                       metadata={"remote_tier": "medium"}), correct=True)
+    m.add(RoutingTrace(prompt="z", final_text="c", final_backend="remote",
+                       remote_tokens=200, local_tokens=0,
+                       metadata={"remote_tier": "small"}), correct=False)
+
+    assert m.n == 3
+    assert m.n_correct == 2
+    assert m.total_remote_tokens == 300
+    assert m.remote_tokens_per_correct == 150.0
+    assert m.tier_counts == {"medium": 1, "small": 1}

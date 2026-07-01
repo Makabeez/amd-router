@@ -17,6 +17,7 @@ class RunMetrics:
     n_local_only: int = 0  # routed to local, no remote
     n_remote_used: int = 0
     n_verify_mode: int = 0
+    tier_counts: dict[str, int] = field(default_factory=dict)  # tier → count
     per_task_type: dict[str, dict[str, int]] = field(default_factory=dict)
     traces: list[RoutingTrace] = field(default_factory=list)
 
@@ -32,6 +33,14 @@ class RunMetrics:
     def local_rate(self) -> float:
         return self.n_local_only / self.n if self.n else 0.0
 
+    @property
+    def remote_tokens_per_correct(self) -> float:
+        """The leaderboard-aligned metric. Lower = better.
+
+        Trader analog: average cost basis per winning trade.
+        """
+        return self.total_remote_tokens / self.n_correct if self.n_correct else float("inf")
+
     def add(self, trace: RoutingTrace, correct: bool) -> None:
         self.n += 1
         self.n_correct += int(correct)
@@ -43,6 +52,10 @@ class RunMetrics:
             self.n_remote_used += 1
         if trace.metadata.get("verify_mode"):
             self.n_verify_mode += 1
+
+        tier = trace.metadata.get("remote_tier")
+        if tier and trace.remote_tokens > 0:
+            self.tier_counts[tier] = self.tier_counts.get(tier, 0) + 1
 
         features = trace.metadata.get("features")
         if features is not None:
@@ -57,13 +70,16 @@ class RunMetrics:
         self.traces.append(trace)
 
     def summary(self) -> dict[str, Any]:
+        rpc = self.remote_tokens_per_correct
         return {
             "n": self.n,
             "accuracy": round(self.accuracy, 4),
             "total_remote_tokens": self.total_remote_tokens,
             "avg_remote_tokens": round(self.avg_remote_tokens, 1),
+            "remote_tokens_per_correct": round(rpc, 1) if rpc != float("inf") else None,
             "local_rate": round(self.local_rate, 3),
             "n_remote_used": self.n_remote_used,
             "n_verify_mode": self.n_verify_mode,
+            "tier_counts": self.tier_counts,
             "per_task_type": self.per_task_type,
         }

@@ -1,0 +1,80 @@
+{"id": "ext-001", "prompt": "Extract the email from: Contact john.doe@example.com for details.", "answer": "john.doe@example.com", "task_type": "extraction"}
+{"id": "ext-002", "prompt": "What is the city in: She moved to Lisbon in 2019.", "answer": "Lisbon", "task_type": "extraction"}
+{"id": "ext-003", "prompt": "Find the number in: The package weighs 4.7 kilograms.", "answer": "4.7", "task_type": "extraction"}
+{"id": "ext-004", "prompt": "Extract the date from: The meeting is scheduled for March 14, 2025.", "answer": "March 14, 2025", "task_type": "extraction"}
+{"id": "ext-005", "prompt": "What phone number is in: Call us at +1-415-555-0142 to confirm.", "answer": "+1-415-555-0142", "task_type": "extraction"}
+{"id": "ext-006", "prompt": "Extract the price from: The book is listed at $24.99 on the website.", "answer": "$24.99", "task_type": "extraction"}
+{"id": "ext-007", "prompt": "What is the URL in: Visit https://example.com/docs for the guide.", "answer": "https://example.com/docs", "task_type": "extraction"}
+{"id": "ext-008", "prompt": "Extract the person's name: According to the report, Maria Hernandez led the team.", "answer": "Maria Hernandez", "task_type": "extraction"}
+{"id": "ext-009", "prompt": "What is the company name in: Apple announced a new product yesterday.", "answer": "Apple", "task_type": "extraction"}
+{"id": "ext-010", "prompt": "Extract the percentage from: Revenue grew by 12.5% last quarter.", "answer": "12.5%", "task_type": "extraction"}
+{"id": "ext-011", "prompt": "What ZIP code is in: They live at 100 Main Street, Boston, MA 02101.", "answer": "02101", "task_type": "extraction"}
+{"id": "ext-012", "prompt": "Extract the IP address from: Connect to 192.168.1.42 on port 8080.", "answer": "192.168.1.42", "task_type": "extraction"}
+{"id": "ext-013", "prompt": "What year is mentioned: The Beatles released Abbey Road in 1969.", "answer": "1969", "task_type": "extraction"}
+{"id": "ext-014", "prompt": "Extract the temperature from: Outside it was -5 degrees Celsius this morning.", "answer": "-5", "task_type": "extraction"}
+{"id": "ext-015", "prompt": "What language is in: She studies Mandarin three times a week.", "answer": "Mandarin", "task_type": "extraction"}
+{"id": "ext-016", "prompt": "Extract the country from: They flew to Brazil for the conference.", "answer": "Brazil", "task_type": "extraction"}
+{"id": "ext-017", "prompt": "What time is mentioned: The flight departs at 09:45 from terminal B.", "answer": "09:45", "task_type": "extraction"}
+{"id": "ext-018", "prompt": "Extract the credit card brand from: Paid with my Visa card yesterday.", "answer": "Visa", "task_type": "extraction"}
+{"id": "ext-019", "prompt": "What color is in: She wore a turquoise dress to the gala.", "answer": "turquoise", "task_type": "extraction"}
+{"id": "ext-020", "prompt": "Extract the animal in: The veterinarian treated a sick parrot today.", "answer": "parrot", "task_type": "extraction"}
+{"id": "cls-001", "prompt": "Classify the sentiment of: This movie was absolutely fantastic! Answer: positive, negative, or neutral.", "answer": "positive", "task_type": "classification"}
+{"id": "cls-002", "prompt": "Is this true or false: The Sun is a planet.", "answer": "false", "task_type": "classification"}
+{"id": "cls-003", "prompt": "Classify sentiment: I waited two hours and the food was cold. positive, negative, or neutral?", "answer": "negative", "task_type": "classification"}
+{"id": "cls-004", "prompt": "Classify sentiment: The package arrived on time as expected. positive, negative, or neutral?", "answer": "neutral", "task_type": "classification"}
+{"id": "cls-005", "prompt": "True or false: Water boils at 100 degrees Celsius at sea level.", "answer": "true", "task_type": "classification"}
+{"id": "cls-006", "prompt": "True or false: A square has five sides.", "answer": "false", "task_type": "classification"}
+{"id": "cls-007", "prompt": "Classify the topic: The new vaccine showed 95% efficacy in trials. Options: sports, health, finance, technology.", "answer": "health", "task_type": "classification"}
+{"id": "cls-008", "prompt": "Classify the topic: The team won the championship in overtime. Options: sports, health, finance, technology.", "answer": "sports", "task_type": "classification"}
+{"id": "cls-009", "prompt": "Classify the topic: Stocks fell after the Fed raised interest rates. Options: sports, health, finance, technology.", "answer": "finance", "task_type": "classification"}
+{"id": "cls-010", "prompt": "Classify the topic: The new chip uses 3nm process technology. Options: sports, health, finance, technology.", "answer": "technology", "task_type": "classification"}
+{"id": "cls-011", "prompt": "Classify language: Bonjour, comment allez-vous aujourd'hui? Options: english, french, spanish, german.", "answer": "french", "task_type": "classification"}
+{"id": "cls-012", "prompt": "Classify language: Buenos dias, mucho gusto en conocerle. Options: english, french, spanish, german.", "answer": "spanish", "task_type": "classification"}
+{"id": "cls-013", "prompt": "Is this a question or a statement: How do I reset my password?", "answer": "question", "task_type": "classification"}
+{"id": "cls-014", "prompt": "Is the following spam or ham: Congratulations! You won a free iPhone, click here now!", "answer": "spam", "task_type": "classification"}
+{"id": "cls-015", "prompt": "Is the following spam or ham: Hi Mom, just landed safely, will call you tomorrow.", "answer": "ham", "task_type": "classification"}
+{"id": "qa-001", "prompt": "What is the capital of France? One word.", "answer": "Paris", "task_type": "short_qa"}
+{"id": "qa-002", "prompt": "Who wrote the play Hamlet? Last name only.", "answer": "Shakespeare", "task_type": "short_qa"}
+{"id": "qa-003", "prompt": "What is the chemical symbol for gold?", "answer": "Au", "task_type": "short_qa"}
+{"id": "qa-004", "prompt": "What is the capital of Japan?", "answer": "Tokyo", "task_type": "short_qa"}
+{"id": "qa-005", "prompt": "What is the largest planet in our solar system?", "answer": "Jupiter", "task_type": "short_qa"}
+{"id": "qa-006", "prompt": "In what year did humans first land on the Moon?", "answer": "1969", "task_type": "short_qa"}
+{"id": "qa-007", "prompt": "What is the chemical symbol for sodium?", "answer": "Na", "task_type": "short_qa"}
+{"id": "qa-008", "prompt": "What language is spoken in Brazil? One word.", "answer": "Portuguese", "task_type": "short_qa"}
+{"id": "qa-009", "prompt": "Who painted the Mona Lisa? Last name only.", "answer": "Leonardo", "task_type": "short_qa"}
+{"id": "qa-010", "prompt": "What is the smallest prime number?", "answer": "2", "task_type": "short_qa"}
+{"id": "qa-011", "prompt": "What is the speed of light in vacuum, in meters per second? Give the number only, no units.", "answer": "299792458", "task_type": "short_qa"}
+{"id": "qa-012", "prompt": "Who is the author of the novel 1984? Last name only.", "answer": "Orwell", "task_type": "short_qa"}
+{"id": "qa-013", "prompt": "What is the longest river in the world? One word.", "answer": "Nile", "task_type": "short_qa"}
+{"id": "qa-014", "prompt": "What is the boiling point of water at sea level in Celsius? Number only.", "answer": "100", "task_type": "short_qa"}
+{"id": "qa-015", "prompt": "How many continents are there on Earth?", "answer": "7", "task_type": "short_qa"}
+{"id": "math-001", "prompt": "What is 23 * 47?", "answer": "1081", "task_type": "math"}
+{"id": "math-002", "prompt": "If a train travels 60 mph for 2.5 hours, how far does it go? Give the number only.", "answer": "150", "task_type": "math"}
+{"id": "math-003", "prompt": "What is 15 percent of 240?", "answer": "36", "task_type": "math"}
+{"id": "math-004", "prompt": "What is 144 divided by 12?", "answer": "12", "task_type": "math"}
+{"id": "math-005", "prompt": "What is the square root of 169?", "answer": "13", "task_type": "math"}
+{"id": "math-006", "prompt": "If x + 7 = 22, what is x?", "answer": "15", "task_type": "math"}
+{"id": "math-007", "prompt": "What is 2 to the power of 10?", "answer": "1024", "task_type": "math"}
+{"id": "math-008", "prompt": "A shirt costs $40 with a 25% discount applied. What is the discounted price in dollars? Number only.", "answer": "30", "task_type": "math"}
+{"id": "math-009", "prompt": "If a recipe needs 3 cups of flour for 12 cookies, how many cups are needed for 36 cookies?", "answer": "9", "task_type": "math"}
+{"id": "math-010", "prompt": "What is the sum of the first 10 positive integers?", "answer": "55", "task_type": "math"}
+{"id": "math-011", "prompt": "A car travels 240 km in 4 hours. What is its average speed in km/h? Number only.", "answer": "60", "task_type": "math"}
+{"id": "math-012", "prompt": "What is 7 factorial (7!)?", "answer": "5040", "task_type": "math"}
+{"id": "math-013", "prompt": "If 3 workers can complete a job in 8 hours, how many hours will it take 6 workers (same rate)?", "answer": "4", "task_type": "math"}
+{"id": "math-014", "prompt": "A rectangle has length 12 and width 5. What is its area?", "answer": "60", "task_type": "math"}
+{"id": "math-015", "prompt": "What is the area of a circle with radius 10? Use pi=3.14. Number only.", "answer": "314", "task_type": "math"}
+{"id": "reas-001", "prompt": "If all roses are flowers and some flowers fade quickly, can we conclude that some roses fade quickly? Answer yes or no.", "answer": "no", "task_type": "reasoning"}
+{"id": "reas-002", "prompt": "Alice is older than Bob. Bob is older than Carol. Who is the youngest?", "answer": "Carol", "task_type": "reasoning"}
+{"id": "reas-003", "prompt": "Tom is taller than Sam. Sam is taller than Will. Who is the tallest?", "answer": "Tom", "task_type": "reasoning"}
+{"id": "reas-004", "prompt": "If today is Wednesday, what day of the week will it be 10 days from now?", "answer": "Saturday", "task_type": "reasoning"}
+{"id": "reas-005", "prompt": "A clock shows 3:15. What is the angle in degrees between the hour and minute hands? Number only.", "answer": "7.5", "task_type": "reasoning"}
+{"id": "reas-006", "prompt": "Five friends sit in a row. Anna is left of Bob. Bob is left of Carol. Carol is left of Dan. Dan is left of Eve. Who is in the middle?", "answer": "Carol", "task_type": "reasoning"}
+{"id": "reas-007", "prompt": "If you flip a fair coin twice, what is the probability of getting at least one head? Give a decimal.", "answer": "0.75", "task_type": "reasoning"}
+{"id": "reas-008", "prompt": "A man has two daughters. At least one is a girl born on Tuesday. Without more info, are both daughters girls? Yes or no.", "answer": "yes", "task_type": "reasoning"}
+{"id": "reas-009", "prompt": "If A implies B, and B implies C, and A is true, must C be true? Yes or no.", "answer": "yes", "task_type": "reasoning"}
+{"id": "reas-010", "prompt": "If no cats are dogs, and Felix is a cat, is Felix a dog? Yes or no.", "answer": "no", "task_type": "reasoning"}
+{"id": "code-001", "prompt": "Write a Python one-liner that returns the sum of squares of numbers 1 to 10.", "answer": "385", "task_type": "code"}
+{"id": "code-002", "prompt": "What does this return: len('hello world'.split())", "answer": "2", "task_type": "code"}
+{"id": "code-003", "prompt": "What does this Python expression return: list(range(5))[::-1][0]", "answer": "4", "task_type": "code"}
+{"id": "code-004", "prompt": "What is the output of: print(sum([1, 2, 3, 4]))", "answer": "10", "task_type": "code"}
+{"id": "code-005", "prompt": "What does this return in Python: 'banana'.count('a')", "answer": "3", "task_type": "code"}

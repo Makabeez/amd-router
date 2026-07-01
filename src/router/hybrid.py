@@ -12,12 +12,13 @@ Flow:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..backends.base import Backend, GenerationResult
 from ..classifiers.confidence import ConfidenceReport, assess
-from ..classifiers.heuristic import TaskFeatures, classify
+from ..classifiers.heuristic import TaskFeatures, TaskType, classify
+from ..classifiers.prompts import format_for_local, format_for_remote, format_verify
 from ..escalation.policies import EscalationPolicy, ThresholdPolicy
 from .base import Router, RoutingTrace
 
@@ -30,24 +31,37 @@ class HybridConfig:
     local_max_tokens: int = 512
     local_temperature: float = 0.0
     local_return_logprobs: bool = True
+    use_local_templates: bool = True  # task-type-aware prompt wrapping
 
     # Self-consistency (set n_samples=0 to disable)
     n_samples: int = 0
     samples_temperature: float = 0.7
-    samples_max_tokens: int = 256  # samples can be shorter than primary
+    samples_max_tokens: int = 256
 
     # Remote generation
     remote_max_tokens: int = 512
     remote_temperature: float = 0.0
+    use_remote_templates: bool = True
 
-    # Verification mode: when escalating with local-as-context,
-    # ask remote to verify+correct rather than redo from scratch
-    verify_prompt_template: str = (
-        "Question: {prompt}\n\n"
-        "Draft answer: {draft}\n\n"
-        "If the draft is correct, repeat it exactly. "
-        "If incorrect, provide the correct answer only. No explanation."
+    # Tier hints — per task type, which remote tier to use on escalation.
+    # The router will pass tier=<str> to remote.generate(); single-model
+    # remote backends ignore it gracefully, TieredRemoteBackend dispatches.
+    tier_by_task: dict[TaskType, str] = field(
+        default_factory=lambda: {
+            TaskType.EXTRACTION: "small",
+            TaskType.CLASSIFICATION: "small",
+            TaskType.SHORT_QA: "small",
+            TaskType.MATH: "medium",
+            TaskType.REASONING: "medium",
+            TaskType.CODE: "medium",
+            TaskType.LONG_GEN: "medium",
+            TaskType.UNKNOWN: "medium",
+        }
     )
+
+    # Verify-mode length guard: skip verify wrap if it inflates prompt by >ratio.
+    # Trader analog: don't pay slippage to "improve" a tiny order.
+    verify_length_ratio_max: float = 1.5
 
 
 class HybridRouter(Router):
@@ -84,10 +98,16 @@ class HybridRouter(Router):
         decisions.append(f"preflight: escalate={pre.escalate} ({pre.reason})")
 
         if pre.escalate:
+            remote_prompt = (
+                format_for_remote(prompt, features.type)
+                if cfg.use_remote_templates
+                else prompt
+            )
             remote_result = self.remote.generate(
-                prompt,
+                remote_prompt,
                 max_tokens=cfg.remote_max_tokens,
                 temperature=cfg.remote_temperature,
+                tier=cfg.tier_by_task.get(features.type, "medium"),
             )
             return RoutingTrace(
                 prompt=prompt,
@@ -100,8 +120,13 @@ class HybridRouter(Router):
             )
 
         # 3. Local primary generation
+        local_prompt = (
+            format_for_local(prompt, features.type)
+            if cfg.use_local_templates
+            else prompt
+        )
         local_primary = self.local.generate(
-            prompt,
+            local_prompt,
             max_tokens=cfg.local_max_tokens,
             temperature=cfg.local_temperature,
             return_logprobs=cfg.local_return_logprobs,
@@ -115,7 +140,7 @@ class HybridRouter(Router):
         samples: list[GenerationResult] | None = None
         if cfg.n_samples > 0:
             samples = self.local.generate_n(
-                prompt,
+                local_prompt,
                 n=cfg.n_samples,
                 max_tokens=cfg.samples_max_tokens,
                 temperature=cfg.samples_temperature,
@@ -157,22 +182,43 @@ class HybridRouter(Router):
             )
 
         # 7. Escalate to remote
+        tier = cfg.tier_by_task.get(features.type, "medium")
         if post.use_local_as_context:
-            remote_prompt = cfg.verify_prompt_template.format(
-                prompt=prompt, draft=local_text
+            verify_prompt = format_verify(prompt, local_text, features.type)
+            # Length guard: skip verify if it inflates beyond ratio.
+            # Verify of a 20-char question with 300-char draft = lose tokens.
+            base_prompt = (
+                format_for_remote(prompt, features.type)
+                if cfg.use_remote_templates
+                else prompt
             )
-            decisions.append("remote: verify-mode (draft attached)")
+            if len(verify_prompt) > cfg.verify_length_ratio_max * len(base_prompt):
+                remote_prompt = base_prompt
+                verify_used = False
+                decisions.append(
+                    f"remote: verify skipped (would inflate {len(base_prompt)}→{len(verify_prompt)} chars)"
+                )
+            else:
+                remote_prompt = verify_prompt
+                verify_used = True
+                decisions.append("remote: verify-mode (draft attached)")
         else:
-            remote_prompt = prompt
+            remote_prompt = (
+                format_for_remote(prompt, features.type)
+                if cfg.use_remote_templates
+                else prompt
+            )
+            verify_used = False
             decisions.append("remote: fresh prompt")
 
         remote_result = self.remote.generate(
             remote_prompt,
             max_tokens=cfg.remote_max_tokens,
             temperature=cfg.remote_temperature,
+            tier=tier,
         )
         decisions.append(
-            f"remote: in={remote_result.remote_input_tokens} "
+            f"remote: tier={tier} in={remote_result.remote_input_tokens} "
             f"out={remote_result.remote_output_tokens}"
         )
 
@@ -187,6 +233,7 @@ class HybridRouter(Router):
             metadata={
                 "features": features,
                 "confidence": confidence,
-                "verify_mode": post.use_local_as_context,
+                "verify_mode": verify_used,
+                "remote_tier": tier,
             },
         )

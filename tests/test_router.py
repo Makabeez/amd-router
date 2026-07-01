@@ -157,3 +157,30 @@ def test_metrics_remote_tokens_per_correct():
     assert m.total_remote_tokens == 300
     assert m.remote_tokens_per_correct == 150.0
     assert m.tier_counts == {"medium": 1, "small": 1}
+
+
+def test_classifier_accuracy_on_dev80():
+    """Regression guard: classifier should hit ≥90% on the dev set."""
+    import json
+    from pathlib import Path
+    from src.classifiers.heuristic import classify
+
+    tasks_path = Path(__file__).resolve().parents[1] / "eval" / "tasks" / "dev80.jsonl"
+    with tasks_path.open() as f:
+        tasks = [json.loads(line) for line in f if line.strip()]
+
+    correct = sum(
+        1 for t in tasks if classify(t["prompt"]).type.value == t["task_type"]
+    )
+    accuracy = correct / len(tasks)
+    assert accuracy >= 0.90, f"classifier regressed: {accuracy:.2%} on dev80"
+
+
+def test_inline_source_detection():
+    """Extraction requires an inline source passage."""
+    from src.classifiers.heuristic import _has_inline_source
+
+    # Extraction — has inline source after colon
+    assert _has_inline_source("What is the city in: She moved to Lisbon in 2019.")
+    # Short QA — no inline source
+    assert not _has_inline_source("What is the capital of France?")

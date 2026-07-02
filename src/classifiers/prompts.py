@@ -48,12 +48,19 @@ LOCAL_TEMPLATES: dict[TaskType, str] = {
     TaskType.UNKNOWN: "{prompt}",
 }
 
-# Remote: minimal scaffolding, let the bigger model decide format.
+# Remote: reasoning models will "think" regardless; ask for a clear final-answer
+# marker so extractors can slice out the answer without the trace.
+_REMOTE_ANSWER_MARKER_TEMPLATE = (
+    "{prompt}\n\n"
+    "Provide your answer in this exact format on the LAST line:\n"
+    "Final Answer: <answer>"
+)
+
 REMOTE_TEMPLATES: dict[TaskType, str] = {
-    t: "{prompt}\n\nAnswer concisely with only the final answer." for t in TaskType
+    t: _REMOTE_ANSWER_MARKER_TEMPLATE for t in TaskType
 }
 REMOTE_TEMPLATES[TaskType.LONG_GEN] = "{prompt}"
-REMOTE_TEMPLATES[TaskType.UNKNOWN] = "{prompt}"
+REMOTE_TEMPLATES[TaskType.UNKNOWN] = _REMOTE_ANSWER_MARKER_TEMPLATE
 
 
 def format_for_local(prompt: str, task_type: TaskType) -> str:

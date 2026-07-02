@@ -4,14 +4,18 @@ Wraps multiple Fireworks models behind one Backend interface. The router
 calls `generate(prompt, tier=...)` and the wrapper dispatches to the right
 underlying model.
 
-Tiers:
-  small  → fastest, cheapest (e.g. Llama 3.1 8B). Use for verification of
-           local drafts, simple classification escalations.
-  medium → balanced (e.g. Llama 3.1 70B). Use for reasoning, math.
-  large  → highest accuracy (e.g. Llama 3.1 405B, DeepSeek V3). Use only
-           when medium also failed or task is critically hard.
+Tiers (calibrated against Jul-2026 Fireworks catalog — reasoning-model era):
+  small  → cheapest per-answer overhead. Use for verification of local drafts,
+           simple classification escalations, extraction confirmations.
+  medium → balanced. Use for math, reasoning where "small" might miss.
+  large  → highest capacity. Use only when medium also failed.
 
-In trading terms: small = market order on liquid asset, large = expensive
+Empirical basis: DeepSeek V4-Pro burns ~36 output tokens on a 1-word answer,
+Kimi K2p6 burns ~54, GLM 5p2 burns ~87. Numbers will differ per task shape
+but this ordering held on smoke tests. Recalibrate via calibrate_thresholds.py
+once real tasks are seen on Jul 6.
+
+In trading terms: small = tight-spread liquid market, large = expensive
 limit order with slippage. Match instrument to trade.
 """
 
@@ -29,16 +33,17 @@ Tier = Literal["small", "medium", "large"]
 class TieredRemoteBackend(Backend):
     """Multi-model remote backend with tier-based dispatch.
 
-    Default tiers can be overridden via env vars:
+    Defaults reflect the reasoning-model catalog available Jul 2026.
+    Override via env vars for hackathon-day model lineup:
       FIREWORKS_MODEL_SMALL, FIREWORKS_MODEL_MEDIUM, FIREWORKS_MODEL_LARGE
     """
 
     is_remote = True
 
     DEFAULTS: dict[Tier, str] = {
-        "small": "accounts/fireworks/models/llama-v3p1-8b-instruct",
-        "medium": "accounts/fireworks/models/llama-v3p1-70b-instruct",
-        "large": "accounts/fireworks/models/llama-v3p1-405b-instruct",
+        "small": "accounts/fireworks/models/deepseek-v4-pro",   # lowest overhead observed
+        "medium": "accounts/fireworks/models/kimi-k2p6",         # balanced
+        "large": "accounts/fireworks/models/glm-5p2",            # highest capacity, most overhead
     }
 
     def __init__(

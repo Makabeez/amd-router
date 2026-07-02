@@ -184,3 +184,45 @@ def test_inline_source_detection():
     assert _has_inline_source("What is the city in: She moved to Lisbon in 2019.")
     # Short QA — no inline source
     assert not _has_inline_source("What is the capital of France?")
+
+
+def test_reasoning_trace_stripping():
+    """Reasoning-model outputs must have thinking traces stripped."""
+    from src.router.strategies import raw_text, numeric_answer, yes_no
+    from src.backends.base import GenerationResult
+
+    # Explicit <think> tags
+    r1 = GenerationResult(
+        text="<think>The user is asking about France. Its capital is Paris.</think>\n\nFinal Answer: Paris"
+    )
+    assert raw_text(r1) == "Paris"
+
+    # "Final Answer:" marker without tags
+    r2 = GenerationResult(
+        text="Let me work through this.\nStep 1: identify the question.\nStep 2: recall facts.\n\nFinal Answer: 42"
+    )
+    assert numeric_answer(r2) == "42"
+
+    # No marker — take last paragraph
+    r3 = GenerationResult(
+        text="First I consider the options.\n\nThe answer is yes."
+    )
+    assert yes_no(r3) == "yes"
+
+    # Boxed answer
+    r4 = GenerationResult(
+        text="After computing, \\boxed{1081} is the result."
+    )
+    assert numeric_answer(r4) == "1081"
+
+
+def test_tiered_backend_defaults_match_actual_catalog():
+    """Guard against stale model IDs — defaults must point at real Fireworks models."""
+    from src.backends.tiered import TieredRemoteBackend
+
+    for tier in ("small", "medium", "large"):
+        model_id = TieredRemoteBackend.DEFAULTS[tier]
+        # All should be namespaced under accounts/fireworks/models/
+        assert model_id.startswith("accounts/fireworks/models/")
+        # Should NOT reference the stale llama-v3p1 catalog
+        assert "llama-v3p1" not in model_id, f"{tier} still on stale catalog: {model_id}"

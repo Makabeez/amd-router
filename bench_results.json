@@ -1,0 +1,18 @@
+[
+  {
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "n": 80,
+    "accuracy": 0.575,
+    "avg_output_tokens": 184.8,
+    "avg_latency_s": 8.83,
+    "total_time_s": 706.4
+  },
+  {
+    "model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "n": 80,
+    "accuracy": 0.5625,
+    "avg_output_tokens": 155.8,
+    "avg_latency_s": 20.113,
+    "total_time_s": 1609.0
+  }
+]

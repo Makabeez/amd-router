@@ -16,7 +16,8 @@ hf_cache/
 models/
 
 # Eval artifacts
-bench_results.json
+# bench_results.json committed as evidence
+!bench_results.json
 calibration.json
 traces.jsonl
 predictions.jsonl

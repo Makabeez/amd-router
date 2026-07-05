@@ -22,26 +22,28 @@ COPY src ./src
 COPY eval ./eval
 COPY scripts ./scripts
 
-# Pre-download BOTH candidate local models so cold-start on the eval env is fast
-# and the LOCAL_MODEL choice can be flipped via env var without a rebuild.
-#   - Qwen 0.5B: fast, 57.5% on dev80 — dev-iteration + latency-capped fallback
-#   - Llama 3.2 3B: 75% on dev80 — scoring-time default on GPU eval env
-# Llama is gated; pass a HF token at build time to fetch it:
-#   docker build --build-arg HF_TOKEN=hf_xxx -t amd-router .
-# Without a token, the Llama pull is skipped (|| true) and only Qwen is baked in.
-ARG HF_TOKEN=""
-ENV HF_TOKEN=${HF_TOKEN}
+# Pre-download BOTH candidate local models. Qwen 0.5B (57.5%, fast dev fallback)
+# and Llama 3.2 3B (75%, scoring default on GPU eval env).
+#
+# Llama is gated. Pass the HF token as a BuildKit SECRET (never persisted in a
+# layer) so the image contains model weights but NOT the credential:
+#
+#   DOCKER_BUILDKIT=1 docker build \
+#     --secret id=hf_token,src=$HOME/.cache/huggingface/token \
+#     -t amd-router .
 
 RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; \
     AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B-Instruct'); \
     AutoModelForCausalLM.from_pretrained('Qwen/Qwen2.5-0.5B-Instruct')" || true
 
-RUN python -c "import os; from huggingface_hub import login; \
-    login(token=os.environ['HF_TOKEN']) if os.environ.get('HF_TOKEN') else None; \
+RUN --mount=type=secret,id=hf_token \
+    HF_TOKEN="$(cat /run/secrets/hf_token 2>/dev/null || true)" \
+    python -c "import os; from huggingface_hub import login; \
+    tok=os.environ.get('HF_TOKEN'); login(token=tok) if tok else None; \
     from transformers import AutoModelForCausalLM, AutoTokenizer; \
     AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-3B-Instruct'); \
     AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-3B-Instruct')" || \
-    echo "Llama 3B pre-download skipped (no HF_TOKEN or gated) — will fetch at runtime"
+    echo "Llama 3B pre-download skipped (no secret or gated) - will fetch at runtime"
 
 # Scoring-time default. Override at run: -e LOCAL_MODEL=Qwen/Qwen2.5-0.5B-Instruct
 ENV LOCAL_MODEL=meta-llama/Llama-3.2-3B-Instruct

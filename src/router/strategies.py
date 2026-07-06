@@ -128,6 +128,18 @@ def boxed_answer(r: GenerationResult) -> str:
     return m.group(1).strip() if m else numeric_answer(r)
 
 
+def summary_text(r: GenerationResult) -> str:
+    """Summaries are free-form; just strip reasoning traces and clean whitespace."""
+    import re as _re
+    txt = _strip_reasoning(r.text)
+    return _re.sub(r"\s+", " ", txt).strip()
+
+
+def entities_text(r: GenerationResult) -> str:
+    """NER output — strip reasoning, return the entity list as-is."""
+    return _strip_reasoning(r.text).strip()
+
+
 # Registry — swap by name in config
 EXTRACTORS: dict[str, Extractor] = {
     "raw": raw_text,
@@ -136,6 +148,8 @@ EXTRACTORS: dict[str, Extractor] = {
     "mcq": multiple_choice_letter,
     "yes_no": yes_no,
     "boxed": boxed_answer,
+    "summary": summary_text,
+    "entities": entities_text,
 }
 
 

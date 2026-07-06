@@ -23,6 +23,8 @@ class TaskType(str, Enum):
     MATH = "math"  # arithmetic / word problem
     REASONING = "reasoning"  # multi-step logic / ordering
     CODE = "code"  # write or evaluate code
+    SUMMARIZATION = "summarization"  # condense a passage
+    NER = "ner"  # named entity recognition
     LONG_GEN = "long_gen"  # multi-paragraph creative / summary
     UNKNOWN = "unknown"
 
@@ -65,7 +67,8 @@ _MATH_ARITHMETIC_PATTERNS = [
     r"\b(solve|calculate|compute|evaluate)\b",
     r"\b(area|volume|perimeter|circumference|diameter|radius)\s+of\b",
     r"\bx\s*[\+\-\*/=]\s*\d",  # simple equations: x + 7 = 22
-    r"\b\d+\s*%\b",  # percentage
+    r"\b\d+\s*%",  # percentage (no \b after % — not a word char)
+    r"\b\d+\s+percent\b",
     r"\$\s*\d+",  # currency amounts
     r"\b(?:km/?h|mph|m/s|kg|lbs?)\b",  # units → likely word problem
 ]
@@ -119,6 +122,28 @@ _CLASSIFICATION_PATTERNS = [
 ]
 
 
+_SUMMARIZATION_PATTERNS = [
+    r"\bsummar(y|ise|ize|ising|izing)\b",
+    r"\bcondense\b",
+    r"\btl;?dr\b",
+    r"\bin\s+(one|two|three|a\s+few|\d+)\s+sentences?\b",
+    r"\bin\s+\d+\s+words?\b",
+    r"\bkey\s+points?\b",
+    r"\bgist\b",
+    r"\bbrief(ly)?\s+describe\b",
+]
+
+_NER_PATTERNS = [
+    r"\bnamed\s+entit(y|ies)\b",
+    r"\b(extract|identify|list|find|label|tag)\s+(all\s+)?(the\s+)?entit(y|ies)\b",
+    r"\blabel\s+(each\s+|the\s+)?entit",
+    # Multiple entity types requested together → NER, not single-field extraction
+    r"\b(person|people)\b.*\b(organi[sz]ation|org|location|place|date)\b.*:",
+    r"\b(organi[sz]ation|org|location|place)\b.*\b(date|person|people)\b.*:",
+    r"\bentit(y|ies)\s+(of\s+type|labell?ing|recognition)\b",
+]
+
+
 def _has(patterns: list[str], text: str) -> bool:
     return any(re.search(p, text, re.IGNORECASE) for p in patterns)
 
@@ -148,6 +173,15 @@ def classify(prompt: str) -> TaskFeatures:
     # Priority order matters — check most specific patterns first.
     if has_code:
         ttype = TaskType.CODE
+
+    # Summarization: explicit summarise/condense/N-sentences cue.
+    # Check early — often has inline source but is NOT extraction.
+    elif _has(_SUMMARIZATION_PATTERNS, text):
+        ttype = TaskType.SUMMARIZATION
+
+    # NER: explicit entity-extraction language.
+    elif _has(_NER_PATTERNS, text):
+        ttype = TaskType.NER
 
     # Extraction: strong signal is inline source text + a "what is X in" or "extract" cue.
     # Check BEFORE math because "Extract the price ($24.99)" has math-adjacent content.
@@ -186,6 +220,8 @@ def classify(prompt: str) -> TaskFeatures:
         TaskType.REASONING: 0.75,
         TaskType.CODE: 0.70,
         TaskType.LONG_GEN: 0.60,
+        TaskType.SUMMARIZATION: 0.55,
+        TaskType.NER: 0.45,
         TaskType.UNKNOWN: 0.50,
     }[ttype]
 

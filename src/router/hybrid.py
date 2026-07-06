@@ -108,6 +108,8 @@ class HybridRouter(Router):
                 max_tokens=cfg.remote_max_tokens,
                 temperature=cfg.remote_temperature,
                 tier=cfg.tier_by_task.get(features.type, "medium"),
+                task_type=features.type,
+                difficulty=features.difficulty,
             )
             return RoutingTrace(
                 prompt=prompt,
@@ -216,6 +218,8 @@ class HybridRouter(Router):
             max_tokens=cfg.remote_max_tokens,
             temperature=cfg.remote_temperature,
             tier=tier,
+            task_type=features.type,
+            difficulty=features.difficulty,
         )
         decisions.append(
             f"remote: tier={tier} in={remote_result.remote_input_tokens} "

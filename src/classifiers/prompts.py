@@ -44,6 +44,16 @@ LOCAL_TEMPLATES: dict[TaskType, str] = {
         "If asked for code, output only the code in a single ```python block.\n\n"
         "Task: {prompt}\n\nAnswer:"
     ),
+    TaskType.SUMMARIZATION: (
+        "Summarize the text as instructed. Output ONLY the summary, "
+        "no preamble, respecting any length or format constraint given.\n\n"
+        "Task: {prompt}\n\nSummary:"
+    ),
+    TaskType.NER: (
+        "Extract the named entities as instructed. Output ONLY the entities "
+        "(and their labels if requested), no explanation.\n\n"
+        "Task: {prompt}\n\nEntities:"
+    ),
     TaskType.LONG_GEN: "{prompt}",  # don't constrain free-form generation
     TaskType.UNKNOWN: "{prompt}",
 }

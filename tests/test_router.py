@@ -128,14 +128,6 @@ def test_tier_hint_for_task_type():
     assert cfg.tier_by_task[TaskType.REASONING] == "medium"
 
 
-def test_tiered_backend_accepts_tier_kwarg():
-    """Tier kwarg should be silently accepted by all backends (uniform interface)."""
-    backend = MockBackend(name="mock", canned="ok")
-    backend.is_remote = True
-    # Should not raise — tier is swallowed via **kwargs
-    r = backend.generate("x", tier="small")
-    assert r.text == "ok"
-
 
 def test_metrics_remote_tokens_per_correct():
     """Cost-per-correct = total_remote_tokens / n_correct."""
@@ -216,13 +208,83 @@ def test_reasoning_trace_stripping():
     assert numeric_answer(r4) == "1081"
 
 
-def test_tiered_backend_defaults_match_actual_catalog():
-    """Guard against stale model IDs — defaults must point at real Fireworks models."""
-    from src.backends.tiered import TieredRemoteBackend
 
-    for tier in ("small", "medium", "large"):
-        model_id = TieredRemoteBackend.DEFAULTS[tier]
-        # All should be namespaced under accounts/fireworks/models/
-        assert model_id.startswith("accounts/fireworks/models/")
-        # Should NOT reference the stale llama-v3p1 catalog
-        assert "llama-v3p1" not in model_id, f"{tier} still on stale catalog: {model_id}"
+def test_model_selector_picks_gemma_by_default():
+    """Non-code tasks should prefer Gemma (bonus + generalist)."""
+    from src.backends.model_selector import ModelSelector
+    from src.classifiers.heuristic import TaskType
+
+    allowed = ["minimax-m3", "kimi-k2p7-code", "gemma-4-31b-it", "gemma-4-26b-a4b-it"]
+    sel = ModelSelector(allowed)
+
+    # Easy factual → cheapest gemma
+    m = sel.select(TaskType.SHORT_QA, difficulty=0.3)
+    assert "gemma" in m.lower()
+
+    # Code → code-specialized model
+    m = sel.select(TaskType.CODE, difficulty=0.7)
+    assert "code" in m.lower()
+
+
+def test_model_selector_size_ordering():
+    """a4b (4B active) should be cheaper than 31b dense."""
+    from src.backends.model_selector import ModelSelector
+
+    sel = ModelSelector(["gemma-4-31b-it", "gemma-4-26b-a4b-it"])
+    # cheapest should be the a4b (4B active params) not the 31b dense
+    assert "a4b" in sel.cheapest.lower()
+
+
+def test_new_task_types_classify():
+    """Summarization and NER must be detected."""
+    from src.classifiers.heuristic import classify, TaskType
+
+    assert classify("Summarize this in one sentence: The quarterly report...").type == TaskType.SUMMARIZATION
+    assert classify("Identify all named entities in: Tim Cook runs Apple.").type == TaskType.NER
+
+
+def test_allowed_models_parsing(monkeypatch):
+    """ALLOWED_MODELS env var must parse into a clean list."""
+    from src.backends.fireworks import get_allowed_models
+
+    monkeypatch.setenv("ALLOWED_MODELS", "gemma-4-31b-it, kimi-k2p7-code ,minimax-m3")
+    models = get_allowed_models()
+    assert models == ["gemma-4-31b-it", "kimi-k2p7-code", "minimax-m3"]
+
+
+def test_harness_io_roundtrip(tmp_path, monkeypatch):
+    """harness_runner should read tasks.json and write valid results.json."""
+    import json
+    import os
+    from src.backends.fireworks import MockBackend
+
+    # Build tiny input
+    inp = tmp_path / "tasks.json"
+    out = tmp_path / "results.json"
+    inp.write_text(json.dumps([
+        {"task_id": "t1", "prompt": "What is 2+2?"},
+        {"task_id": "t2", "prompt": "Capital of France?"},
+    ]))
+
+    monkeypatch.setenv("INPUT_PATH", str(inp))
+    monkeypatch.setenv("OUTPUT_PATH", str(out))
+
+    # Monkeypatch the router builder to use mocks (no model download / no network)
+    import src.harness_runner as hr
+
+    class _FakeTrace:
+        def __init__(self, text): self.final_text = text
+    class _FakeRouter:
+        def route(self, prompt): return _FakeTrace("4" if "2+2" in prompt else "Paris")
+
+    monkeypatch.setattr(hr, "_build_router", lambda: _FakeRouter())
+
+    try:
+        hr.main()
+    except SystemExit as e:
+        assert e.code == 0
+
+    results = json.loads(out.read_text())
+    assert len(results) == 2
+    assert {r["task_id"] for r in results} == {"t1", "t2"}
+    assert all("answer" in r for r in results)

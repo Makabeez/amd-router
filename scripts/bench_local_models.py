@@ -34,7 +34,7 @@ def bench_one(model_id: str, tasks: list[dict], extractor_name: str) -> dict:
     correct = 0
     total_out_tokens = 0
     total_time = 0.0
-    for i, task in enumerate(tasks):
+    for task in tasks:
         t0 = time.time()
         r = backend.generate(task["prompt"], max_tokens=256, return_logprobs=False)
         total_time += time.time() - t0
@@ -43,8 +43,6 @@ def bench_one(model_id: str, tasks: list[dict], extractor_name: str) -> dict:
         pred = extractor(r)
         if score_answer(pred, task["answer"], task.get("task_type")):
             correct += 1
-        if (i + 1) % 10 == 0 or i == 0:
-            print(f"  [{i+1:>3}/{len(tasks)}] acc={correct}/{i+1} elapsed={total_time:.1f}s", flush=True)
 
     result = {
         "model": model_id,
@@ -77,18 +75,10 @@ def main() -> None:
     with args.tasks.open() as f:
         tasks = [json.loads(line) for line in f if line.strip()]
 
-    results = []
-    for m in args.models:
-        try:
-            r = bench_one(m, tasks, args.extractor)
-            results.append(r)
-        except Exception as e:
-            print(f"\n⚠ {m} FAILED: {type(e).__name__}: {str(e)[:200]}", flush=True)
-            results.append({"model": m, "error": f"{type(e).__name__}: {str(e)[:200]}"})
-        # Persist after every model — survives crashes on subsequent models
-        args.out.write_text(json.dumps(results, indent=2))
-        print(f"  saved partial results ({len(results)} models) → {args.out}", flush=True)
-    print(f"\nDone. Final results: {args.out}")
+    results = [bench_one(m, tasks, args.extractor) for m in args.models]
+
+    args.out.write_text(json.dumps(results, indent=2))
+    print(f"\nSaved: {args.out}")
 
     # Pareto-print
     print("\n=== Pareto: accuracy / tokens / latency ===")

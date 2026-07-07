@@ -58,19 +58,26 @@ LOCAL_TEMPLATES: dict[TaskType, str] = {
     TaskType.UNKNOWN: "{prompt}",
 }
 
-# Remote: reasoning models will "think" regardless; ask for a clear final-answer
-# marker so extractors can slice out the answer without the trace.
-_REMOTE_ANSWER_MARKER_TEMPLATE = (
-    "{prompt}\n\n"
-    "Provide your answer in this exact format on the LAST line:\n"
-    "Final Answer: <answer>"
-)
+# Remote: reasoning models think regardless. DON'T give them a "<answer>"
+# placeholder — they derail into analyzing the format instruction. Instead give
+# a short, natural directive per task type that asks for a concise final answer.
+_REMOTE_CONCISE = "{prompt}\n\nRespond with only the final answer, concisely, no explanation."
+_REMOTE_CODE = "{prompt}\n\nRespond with only the corrected/complete code in a single ```python code block."
+_REMOTE_SUMMARY = "{prompt}\n\nRespond with only the summary."
+_REMOTE_NER = "{prompt}\n\nList each entity and its type, one per line. No other text."
 
 REMOTE_TEMPLATES: dict[TaskType, str] = {
-    t: _REMOTE_ANSWER_MARKER_TEMPLATE for t in TaskType
+    TaskType.SHORT_QA: _REMOTE_CONCISE,
+    TaskType.MATH: _REMOTE_CONCISE,
+    TaskType.CLASSIFICATION: _REMOTE_CONCISE,
+    TaskType.EXTRACTION: _REMOTE_CONCISE,
+    TaskType.REASONING: _REMOTE_CONCISE,
+    TaskType.CODE: _REMOTE_CODE,
+    TaskType.SUMMARIZATION: _REMOTE_SUMMARY,
+    TaskType.NER: _REMOTE_NER,
+    TaskType.LONG_GEN: "{prompt}",
+    TaskType.UNKNOWN: _REMOTE_CONCISE,
 }
-REMOTE_TEMPLATES[TaskType.LONG_GEN] = "{prompt}"
-REMOTE_TEMPLATES[TaskType.UNKNOWN] = _REMOTE_ANSWER_MARKER_TEMPLATE
 
 
 def format_for_local(prompt: str, task_type: TaskType) -> str:

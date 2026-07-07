@@ -39,7 +39,7 @@ class HybridConfig:
     samples_max_tokens: int = 256
 
     # Remote generation
-    remote_max_tokens: int = 512
+    remote_max_tokens: int = 1024
     remote_temperature: float = 0.0
     use_remote_templates: bool = True
 
@@ -103,23 +103,48 @@ class HybridRouter(Router):
                 if cfg.use_remote_templates
                 else prompt
             )
-            remote_result = self.remote.generate(
-                remote_prompt,
-                max_tokens=cfg.remote_max_tokens,
-                temperature=cfg.remote_temperature,
-                tier=cfg.tier_by_task.get(features.type, "medium"),
-                task_type=features.type,
-                difficulty=features.difficulty,
-            )
-            return RoutingTrace(
-                prompt=prompt,
-                final_text=remote_result.text,
-                final_backend=self.remote.name,
-                remote_tokens=remote_result.remote_tokens,
-                local_tokens=0,
-                decisions=decisions,
-                metadata={"features": features, "skipped_local": True},
-            )
+            try:
+                remote_result = self.remote.generate(
+                    remote_prompt,
+                    max_tokens=cfg.remote_max_tokens,
+                    temperature=cfg.remote_temperature,
+                    tier=cfg.tier_by_task.get(features.type, "medium"),
+                    task_type=features.type,
+                    difficulty=features.difficulty,
+                )
+                return RoutingTrace(
+                    prompt=prompt,
+                    final_text=remote_result.text,
+                    final_backend=self.remote.name,
+                    remote_tokens=remote_result.remote_tokens,
+                    local_tokens=0,
+                    decisions=decisions,
+                    metadata={"features": features, "skipped_local": True},
+                )
+            except Exception as e:
+                # Preflight-escalated (e.g. code) but remote failed. Last resort:
+                # attempt locally so we still emit something for the accuracy gate.
+                decisions.append(
+                    f"remote FAILED preflight ({type(e).__name__}); local last-resort"
+                )
+                local_prompt = (
+                    format_for_local(prompt, features.type)
+                    if cfg.use_local_templates
+                    else prompt
+                )
+                lr = self.local.generate(
+                    local_prompt, max_tokens=cfg.local_max_tokens,
+                    temperature=cfg.local_temperature,
+                )
+                return RoutingTrace(
+                    prompt=prompt,
+                    final_text=lr.text,
+                    final_backend=self.local.name + "(remote-fallback)",
+                    remote_tokens=0,
+                    local_tokens=lr.local_output_tokens,
+                    decisions=decisions,
+                    metadata={"features": features, "remote_failed": True},
+                )
 
         # 3. Local primary generation
         local_prompt = (
@@ -213,14 +238,31 @@ class HybridRouter(Router):
             verify_used = False
             decisions.append("remote: fresh prompt")
 
-        remote_result = self.remote.generate(
-            remote_prompt,
-            max_tokens=cfg.remote_max_tokens,
-            temperature=cfg.remote_temperature,
-            tier=tier,
-            task_type=features.type,
-            difficulty=features.difficulty,
-        )
+        try:
+            remote_result = self.remote.generate(
+                remote_prompt,
+                max_tokens=cfg.remote_max_tokens,
+                temperature=cfg.remote_temperature,
+                tier=tier,
+                task_type=features.type,
+                difficulty=features.difficulty,
+            )
+        except Exception as e:
+            # Remote failed (timeout, rate limit, etc.). Fall back to the local
+            # answer rather than returning nothing — a mediocre answer beats an
+            # empty one at the accuracy gate.
+            decisions.append(f"remote FAILED ({type(e).__name__}); falling back to local")
+            return RoutingTrace(
+                prompt=prompt,
+                final_text=local_text,
+                final_backend=self.local.name + "(remote-fallback)",
+                remote_tokens=0,
+                local_tokens=local_primary.local_output_tokens
+                + sum(s.local_output_tokens for s in (samples or [])),
+                decisions=decisions,
+                metadata={"features": features, "confidence": confidence,
+                          "remote_failed": True},
+            )
         decisions.append(
             f"remote: tier={tier} in={remote_result.remote_input_tokens} "
             f"out={remote_result.remote_output_tokens}"

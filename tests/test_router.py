@@ -288,3 +288,56 @@ def test_harness_io_roundtrip(tmp_path, monkeypatch):
     assert len(results) == 2
     assert {r["task_id"] for r in results} == {"t1", "t2"}
     assert all("answer" in r for r in results)
+
+
+def test_code_extractor_pulls_fence_contents():
+    """Code extractor must return fenced-block contents, not the fence."""
+    from src.router.strategies import code_answer
+    from src.backends.base import GenerationResult
+
+    r = GenerationResult(text="```python\ndef f(x):\n    return x*2\n```")
+    out = code_answer(r)
+    assert out.startswith("def f")
+    assert "```" not in out
+
+    # No fence — return stripped text
+    r2 = GenerationResult(text="def g(): return 1")
+    assert "def g" in code_answer(r2)
+
+
+def test_code_tasks_always_escalate():
+    """Code tasks skip the unreliable local model and go straight to remote."""
+    from src.escalation.policies import ThresholdPolicy
+    from src.classifiers.heuristic import classify, TaskType
+
+    policy = ThresholdPolicy()
+    feats = classify("Fix the bug: def add(a,b): return a-b")
+    assert feats.type == TaskType.CODE
+    decision = policy.decide_preflight(feats)
+    assert decision.escalate is True
+    assert "always escalate" in decision.reason.lower()
+
+
+def test_remote_failure_falls_back_to_local():
+    """If remote raises, router returns the local answer, not empty."""
+    from src.router.hybrid import HybridRouter, HybridConfig
+    from src.escalation.policies import ThresholdPolicy
+    from src.backends.fireworks import MockBackend
+
+    local = MockBackend(name="local", canned="local-answer")
+    local.is_remote = False
+
+    class BoomRemote(MockBackend):
+        is_remote = True
+        def generate(self, *a, **k):
+            raise TimeoutError("simulated remote timeout")
+
+    remote = BoomRemote(name="remote")
+    # Force escalation so remote is attempted
+    policy = ThresholdPolicy(min_confidence=2.0, preflight_skip_local_above=1.1,
+                             per_task_min_confidence={}, always_escalate=set())
+    router = HybridRouter(local=local, remote=remote, policy=policy)
+    trace = router.route("some prompt")
+    assert trace.final_text == "local-answer"
+    assert "fallback" in trace.final_backend
+    assert trace.remote_tokens == 0

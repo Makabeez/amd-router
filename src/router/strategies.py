@@ -38,34 +38,47 @@ _FINAL_ANSWER_MARKERS = [
 
 
 def _strip_reasoning(text: str) -> str:
-    """Remove thinking traces and extract the final answer segment.
+    """Extract the concise answer from model output.
 
-    1. Strip explicit reasoning tags.
-    2. If a "Final Answer:" or "Answer:" marker exists, take the content after it.
-    3. Otherwise return the last non-empty paragraph (heuristic: reasoning-model
-       final answers appear at the end).
+    Handles two output shapes:
+      - Reasoning models (remote): think first, answer last, often with a
+        "Final Answer:" marker.
+      - Chatty small models (local): give the answer first, then ramble
+        ("Tokyo. The capital city of Japan is Tokyo. It is located...").
+
+    Strategy:
+      1. Strip explicit <think> tags.
+      2. If an explicit answer marker exists, use the text after it.
+      3. Else if the FIRST line is a short standalone answer (<= ~12 words),
+         use it — this catches the answer-first chatty pattern.
+      4. Else fall back to the full cleaned text (don't drop content).
     """
     if not text:
         return text
 
-    # Strip explicit tags
     cleaned = text
     for pattern in _REASONING_TAG_PATTERNS:
         cleaned = pattern.sub("", cleaned)
+    # Strip leaked format-placeholder literals that models sometimes echo.
+    cleaned = cleaned.replace("<answer>", "").replace("<number>", "")
     cleaned = cleaned.strip()
 
-    # Look for a final-answer marker
+    # 2. Explicit answer marker (reasoning models, templated prompts)
     for pattern in _FINAL_ANSWER_MARKERS:
         m = pattern.search(cleaned)
         if m:
             return m.group(1).strip().rstrip(".!?,;:")
 
-    # No marker — take last non-empty paragraph (typically the conclusion)
-    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", cleaned) if p.strip()]
-    if paragraphs and len(paragraphs) > 1:
-        # If we have multiple paragraphs, the last is usually the answer
-        return paragraphs[-1]
+    # 3. Answer-first pattern: short first line/sentence, then elaboration.
+    # Split on the first sentence-ending punctuation or newline.
+    first_seg = re.split(r"(?<=[.!?])\s|\n", cleaned, maxsplit=1)[0].strip()
+    first_seg_clean = first_seg.rstrip(".!?,;:")
+    # If the first segment is a compact answer AND there's more text after it
+    # (i.e., the model rambled), prefer the compact first segment.
+    if first_seg_clean and len(first_seg_clean.split()) <= 12 and len(cleaned) > len(first_seg) + 5:
+        return first_seg_clean
 
+    # 4. No clear structure — return the full cleaned text.
     return cleaned
 
 
@@ -96,12 +109,22 @@ def multiple_choice_letter(r: GenerationResult) -> str:
 
 
 def yes_no(r: GenerationResult) -> str:
-    stripped = _strip_reasoning(r.text).lower()
-    if re.search(r"\byes\b|\btrue\b", stripped):
+    # Classifiers scan the WHOLE output (minus <think> tags), not just the
+    # concise first segment — the yes/no signal can appear anywhere.
+    text = r.text
+    for pattern in _REASONING_TAG_PATTERNS:
+        text = pattern.sub("", text)
+    low = text.lower()
+    # Prefer an explicit "answer: yes/no" if present
+    m = re.search(r"(?i)answer\s*[:=]\s*(yes|no|true|false)", low)
+    if m:
+        val = m.group(1)
+        return "yes" if val in ("yes", "true") else "no"
+    if re.search(r"\byes\b|\btrue\b", low):
         return "yes"
-    if re.search(r"\bno\b|\bfalse\b", stripped):
+    if re.search(r"\bno\b|\bfalse\b", low):
         return "no"
-    return stripped
+    return _strip_reasoning(r.text).lower()
 
 
 def json_field(field: str) -> Extractor:
@@ -141,6 +164,28 @@ def entities_text(r: GenerationResult) -> str:
 
 
 # Registry — swap by name in config
+def code_answer(r: GenerationResult) -> str:
+    """Extract code. Prefer the contents of a fenced ```...``` block.
+
+    Chatty models wrap code in ```python ... ```; we want the code inside,
+    not the fence. If no fence, return the reasoning-stripped text.
+    """
+    text = r.text
+    # Strip <think> tags first
+    for pattern in _REASONING_TAG_PATTERNS:
+        text = pattern.sub("", text)
+    # Pull the first fenced block's contents
+    m = re.search(r"```(?:\w+)?\s*\n?(.*?)```", text, re.DOTALL)
+    if m:
+        code = m.group(1).strip()
+        if code:
+            return code
+    # No usable fence — strip a leading bare ```lang line if present, return rest
+    text = re.sub(r"^\s*```\w*\s*\n?", "", text.strip())
+    text = re.sub(r"\n?```\s*$", "", text)
+    return text.strip()
+
+
 EXTRACTORS: dict[str, Extractor] = {
     "raw": raw_text,
     "first_line": first_line,
@@ -149,6 +194,7 @@ EXTRACTORS: dict[str, Extractor] = {
     "yes_no": yes_no,
     "boxed": boxed_answer,
     "summary": summary_text,
+    "code": code_answer,
     "entities": entities_text,
 }
 

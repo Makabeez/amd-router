@@ -84,8 +84,27 @@ class FireworksBackend(Backend):
             payload["logprobs"] = True
             payload["top_logprobs"] = 1
 
-        r = self.client.post("/chat/completions", json=payload)
-        r.raise_for_status()
+        import time as _time
+
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                r = self.client.post("/chat/completions", json=payload)
+                r.raise_for_status()
+                break
+            except (httpx.TimeoutException, httpx.TransportError) as e:
+                last_err = e
+                if attempt < 2:
+                    _time.sleep(0.5 * (attempt + 1))  # 0.5s, 1.0s backoff
+                    continue
+                raise
+            except httpx.HTTPStatusError as e:
+                # Retry only on transient server errors (429, 5xx)
+                if e.response.status_code in (429, 500, 502, 503, 504) and attempt < 2:
+                    last_err = e
+                    _time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise
         data = r.json()
 
         choice = data["choices"][0]

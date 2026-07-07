@@ -22,6 +22,27 @@ import sys
 import time
 from pathlib import Path
 
+
+def _load_dotenv_if_present() -> None:
+    """Load a local .env for DEV convenience only.
+
+    At eval time the harness injects FIREWORKS_API_KEY / FIREWORKS_BASE_URL /
+    ALLOWED_MODELS as real environment variables — those always win because we
+    use setdefault (never overwrite an already-set var). If no .env exists
+    (the eval image must not bundle one), this is a silent no-op.
+    """
+    for candidate in (Path("/app/.env"), Path(__file__).resolve().parents[1] / ".env"):
+        if candidate.exists():
+            for line in candidate.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+            break
+
+
+_load_dotenv_if_present()
+
 INPUT_PATH = Path(os.environ.get("INPUT_PATH", "/input/tasks.json"))
 OUTPUT_PATH = Path(os.environ.get("OUTPUT_PATH", "/output/results.json"))
 
@@ -99,7 +120,27 @@ def main() -> None:
         sys.exit(1)
 
     from src.router.strategies import get_extractor
-    extractor = get_extractor(os.environ.get("ANSWER_EXTRACTOR", "raw"))
+    # Per-task-type extractor: code tasks need fence-aware extraction, NER/summary
+    # their own, etc. A single global extractor mangles structured outputs.
+    from src.classifiers.heuristic import classify, TaskType
+    _EXTRACTOR_BY_TYPE = {
+        TaskType.CODE: "code",
+        TaskType.SUMMARIZATION: "summary",
+        TaskType.NER: "entities",
+        TaskType.MATH: "raw",          # numeric extraction is greedy; raw+strip is safer
+        TaskType.CLASSIFICATION: "raw",
+        TaskType.SHORT_QA: "raw",
+        TaskType.EXTRACTION: "raw",
+        TaskType.REASONING: "raw",
+    }
+    # Global override via env — but ONLY when explicitly set to a real
+    # non-default extractor. "raw" (or unset) means "use per-task extractors",
+    # otherwise a stale ANSWER_EXTRACTOR=raw silently disables code/NER/summary
+    # extraction and mangles those categories.
+    _forced = os.environ.get("ANSWER_EXTRACTOR", "").strip()
+    if _forced in ("", "raw", "auto", "per_task"):
+        _forced = ""
+    default_extractor = get_extractor("raw")
     from src.backends.base import GenerationResult
 
     results: list[dict] = []
@@ -116,6 +157,11 @@ def main() -> None:
 
         try:
             trace = router.route(prompt)
+            if _forced:
+                extractor = get_extractor(_forced)
+            else:
+                ttype = classify(prompt).type
+                extractor = get_extractor(_EXTRACTOR_BY_TYPE.get(ttype, "raw"))
             answer = extractor(GenerationResult(text=trace.final_text))
         except Exception as e:
             print(f"task {tid} failed: {type(e).__name__}: {e}", file=sys.stderr)

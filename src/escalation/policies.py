@@ -64,7 +64,23 @@ class ThresholdPolicy(EscalationPolicy):
     # If escalating, should we feed the local attempt to remote as draft?
     use_local_as_context_default: bool = True
 
+    # Task types where the small local model is too unreliable to trust even at
+    # high self-reported confidence (it can be confidently wrong — e.g. Qwen 0.5B
+    # hallucinating "task unrelated" on code debugging at logprob-confidence 0.93).
+    # These skip local and go straight to remote. Code is the main offender;
+    # these are also the highest-value categories where a wrong answer fails the
+    # accuracy gate entirely.
+    always_escalate: set[TaskType] = field(
+        default_factory=lambda: {TaskType.CODE}
+    )
+
     def decide_preflight(self, features: TaskFeatures) -> EscalationDecision:
+        if features.type in self.always_escalate:
+            return EscalationDecision(
+                escalate=True,
+                reason=f"preflight: {features.type.value} always escalates (local unreliable)",
+                use_local_as_context=False,
+            )
         if features.difficulty >= self.preflight_skip_local_above:
             return EscalationDecision(
                 escalate=True,

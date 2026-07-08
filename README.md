@@ -29,10 +29,11 @@
 
 **Local-first routing. Escalate only when the small model says "I don't know."**
 
-![status](https://img.shields.io/badge/status-day_0_prep-yellow?style=for-the-badge)
+![status](https://img.shields.io/badge/status-validated_8%2F8-success?style=for-the-badge)
 ![track](https://img.shields.io/badge/track-1_routing-ED1C24?style=for-the-badge)
 ![event](https://img.shields.io/badge/AMD-Hackathon_Act_II-000000?style=for-the-badge)
 ![python](https://img.shields.io/badge/python-3.11+-blue?style=for-the-badge)
+![image](https://img.shields.io/badge/image-ghcr.io%2Fmakabeez%2Famd--router-2088FF?style=for-the-badge&logo=github)
 
 </div>
 
@@ -100,7 +101,7 @@ Four conviction points behind the scaffold:
 ```
 amd-router/
 ├── src/
-│   ├── main.py                    # containerized entrypoint (stdin → stdout JSONL)
+│   ├── harness_runner.py          # container entrypoint (/input → route → /output)
 │   ├── router/
 │   │   ├── base.py                # Router ABC + RoutingTrace
 │   │   ├── hybrid.py              # main orchestration class
@@ -108,7 +109,9 @@ amd-router/
 │   ├── backends/
 │   │   ├── base.py                # Backend ABC + GenerationResult
 │   │   ├── local.py               # HF Transformers wrapper with logprobs
-│   │   └── fireworks.py           # OpenAI-compatible Fireworks client + Mock
+│   │   ├── fireworks.py           # OpenAI-compatible Fireworks client + retry + Mock
+│   │   ├── harness_remote.py      # routes escalations across ALLOWED_MODELS
+│   │   └── model_selector.py      # picks cheapest-capable model per task (Gemma-preferred)
 │   ├── classifiers/
 │   │   ├── heuristic.py           # task type + difficulty (regex)
 │   │   └── confidence.py          # logprob + self-consistency assessment
@@ -133,37 +136,78 @@ amd-router/
 └── README.md
 ```
 
-## Quick start
+## The harness contract
+
+The container implements the Track 1 contract exactly:
+
+- Reads `/input/tasks.json` — `[{"task_id", "prompt"}, ...]`
+- Writes `/output/results.json` — `[{"task_id", "answer"}, ...]`
+- Reads `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, `ALLOWED_MODELS` from the
+  environment at runtime (injected by the harness — never hardcoded, no bundled `.env`)
+- All remote inference routes through `FIREWORKS_BASE_URL`; local inference is free
+- Exits 0 on success; time-budgeted under the 10-min cap with crash-safe incremental writes
+
+Model IDs are read from `ALLOWED_MODELS` at runtime, so the router is model-agnostic:
+it works with whatever the harness provides. `ModelSelector` prefers Gemma for general
+tasks (strong generalist + the *Best Use of Gemma* bonus) and code-specialized models
+for code tasks.
+
+## Validated across all 8 categories
+
+End-to-end run through the container (`/input` → route → `/output`), one task per
+capability category — all clean, all extractable:
+
+| # | Category | Prompt (abbrev.) | Answer | Path |
+|---|----------|------------------|--------|------|
+| 1 | Factual | capital of Japan | `Tokyo` | escalated |
+| 2 | Math | 15% of 240 | `36` | escalated |
+| 3 | Sentiment | "exceeded expectations" | `Positive` | local |
+| 4 | Summarization | earnings passage | one-sentence summary | escalated |
+| 5 | NER | "Satya Nadella … Microsoft … Dublin" | `Satya Nadella, Person …` | escalated |
+| 6 | Code debug | `sum(nums)/len(nums) + 1` | bug removed | remote (always-escalate) |
+| 7 | Logic | race ordering | `Carl` | local |
+| 8 | Code gen | `is_palindrome(s)` | working function | remote (always-escalate) |
+
+Robustness: transient remote failures (timeout / 429 / 5xx) retry with backoff, then
+fall back to the local answer rather than emitting an empty string — a mediocre answer
+beats a blank at the accuracy gate.
+
+## Quick start (local dev)
 
 ```bash
-# 1. clone
 git clone https://github.com/Makabeez/amd-router && cd amd-router
-
-# 2. deps
 pip install -r requirements.txt
+cp .env.example .env          # add your dev FIREWORKS_API_KEY + ALLOWED_MODELS
+pytest tests/ -q              # 23 tests, all green
 
-# 3. configure
-cp .env.example .env
-# fill in FIREWORKS_API_KEY, FIREWORKS_MODEL, LOCAL_MODEL
-
-# 4. smoke tests
-pytest tests/ -v
-
-# 5. mock dry-run
-python -m eval.harness --tasks eval/tasks/sample.jsonl --mock
-
-# 6. real run (one prompt per JSONL line)
-echo '{"id":"q1","prompt":"What is 15% of 240?"}' | python -m src.main
+# Harness-style run: reads /input, writes /output
+mkdir -p _run/input _run/output
+echo '[{"task_id":"t1","prompt":"What is 15% of 240?"}]' > _run/input/tasks.json
+INPUT_PATH=_run/input/tasks.json OUTPUT_PATH=_run/output/results.json \
+  python -m src.harness_runner
+cat _run/output/results.json
 ```
 
 ## Containerized submission
 
 ```bash
-docker build -t amd-router .
-docker run --rm -i \
-    -e FIREWORKS_API_KEY=$FIREWORKS_API_KEY \
-    amd-router < tasks.jsonl > predictions.jsonl
+# Build for the linux/amd64 judging VM
+docker buildx build --platform linux/amd64 \
+  --tag ghcr.io/makabeez/amd-router:latest --push .
+
+# Run exactly as the harness does
+docker run --rm \
+  -v $PWD/_run/input:/input:ro \
+  -v $PWD/_run/output:/output \
+  -e FIREWORKS_API_KEY=$FIREWORKS_API_KEY \
+  -e FIREWORKS_BASE_URL=$FIREWORKS_BASE_URL \
+  -e ALLOWED_MODELS=$ALLOWED_MODELS \
+  ghcr.io/makabeez/amd-router:latest
 ```
+
+Image: **`ghcr.io/makabeez/amd-router:latest`** (public, linux/amd64, 3.47 GB — well
+under the 10 GB cap; CPU-only torch keeps it lean). Local model (Qwen 0.5B) is pre-baked
+so cold start clears the 60 s readiness cap.
 
 ## Routing primitives reference
 
@@ -175,33 +219,16 @@ docker run --rm -i \
 | Threshold escalation | `escalation/policies.py` | 0 (decision) | postlocal hook |
 | Verify-mode remote | `router/hybrid.py` | ~½ fresh remote | when local has a plausible draft |
 
-## Day 0 prep checklist (Jun 30 → Jul 6)
+## Status
 
-- [x] Pluggable router architecture
-- [x] Local + remote + mock backends
-- [x] Heuristic classifier
-- [x] Confidence assessment (logprob + self-consistency)
-- [x] Escalation policy interface + threshold impl
-- [x] Eval harness + scorer + sample tasks
-- [x] Containerized entrypoint
-- [x] 8 smoke tests passing
-- [ ] Register AMD AI Developer Program by **Jul 2** (credits cutoff)
-- [ ] Bench candidate small models on dev set (`scripts/bench_local_models.py`)
-- [ ] Pre-cache 2–3 finalist local models in Docker image
-- [ ] Confirm Fireworks model lineup + token pricing
-- [ ] Read standardized eval env spec on kickoff (Jul 6 18:00 CEST)
-
-## Kickoff day plan (Jul 6, 18:00 CEST)
-
-| Time | Action |
-|------|--------|
-| 18:00 | Tasks revealed — read all instructions before touching code |
-| 18:30 | Lock answer extractor (numeric / MCQ / JSON / ...) for the task format |
-| 19:00 | First baseline: AlwaysRemote → upper-bound accuracy + token cost |
-| 20:00 | Second baseline: AlwaysLocal → lower-bound accuracy, zero cost |
-| 21:00 | First hybrid run with default thresholds |
-| 22:00 | Calibration grid search on held-out subset |
-| Day 2+ | Iterate: prompt engineering, extractor tuning, threshold refinement |
+- [x] Harness contract implemented (`/input` → route → `/output`, env-injected config)
+- [x] 8 capability categories — all validated end-to-end (table above)
+- [x] Per-task answer extraction (code fences, NER lists, summaries, numeric, MCQ, yes/no)
+- [x] `ALLOWED_MODELS`-driven model selection, Gemma-preferred
+- [x] Retry + local-fallback for transient remote failures
+- [x] 23 tests green
+- [x] Docker image public on GHCR, linux/amd64, 3.47 GB
+- [x] Time-budget guard under the 10-min cap with crash-safe incremental writes
 
 ## License
 

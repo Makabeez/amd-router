@@ -21,3 +21,6 @@ calibration.json
 traces.jsonl
 predictions.jsonl
 _ctest/
+eval/output/
+eval/results_*.json
+eval/run_*.log

@@ -33,6 +33,18 @@ class HybridConfig:
     local_return_logprobs: bool = True
     use_local_templates: bool = True  # task-type-aware prompt wrapping
 
+    # AMD_LOCAL_STOP: Qwen-0.5B finishes the answer then keeps generating a
+    # fresh conversation turn, reciting system prompts from its training data
+    # ("You are an AI assistant that helps people find information").
+    # Truncate at those boundaries. Zero token cost, pure accuracy win.
+    local_stop: list[str] = field(
+        default_factory=lambda: [
+            "\nYou are ", "\nUser:", "\nAssistant:", "\nHuman:",
+            "\nTask:", "\nQuestion:", "\nProblem:", "\nText:",
+            "\nSummary:", "\nEntities:", "\nAnswer:", "\nLabel:",
+        ]
+    )
+
     # Self-consistency (set n_samples=0 to disable)
     n_samples: int = 0
     samples_temperature: float = 0.7
@@ -157,6 +169,7 @@ class HybridRouter(Router):
             max_tokens=cfg.local_max_tokens,
             temperature=cfg.local_temperature,
             return_logprobs=cfg.local_return_logprobs,
+            stop=cfg.local_stop,
         )
         decisions.append(
             f"local: {local_primary.local_output_tokens} tokens, "

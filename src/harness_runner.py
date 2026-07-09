@@ -94,7 +94,10 @@ def _build_router():
     # AMD_ALWAYS_ESC_ENV: ALWAYS_ESCALATE="" disables preflight escalation;
     # otherwise comma list of TaskType values, e.g. "code" or "code,reasoning".
     from src.classifiers.heuristic import TaskType as _TT
-    _ae_raw = os.environ.get("ALWAYS_ESCALATE", "")  # measured: local passes 3/3 code.strip()
+    # Measured on the 19-task eval: Qwen-0.5B passes 3/3 code tasks locally at
+    # confidence 0.90/0.91, so preflight-escalating CODE burns ~700 remote
+    # tokens for answers we already had. Default: no preflight escalation.
+    _ae_raw = os.environ.get("ALWAYS_ESCALATE", "").strip()
     _ae = set()
     for _tok in (t.strip().lower() for t in _ae_raw.split(",") if t.strip()):
         try:

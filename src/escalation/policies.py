@@ -70,6 +70,10 @@ class ThresholdPolicy(EscalationPolicy):
     # These skip local and go straight to remote. Code is the main offender;
     # these are also the highest-value categories where a wrong answer fails the
     # accuracy gate entirely.
+    # AMD_ALWAYS_ESCALATE_ENV: set ALWAYS_ESCALATE="" to disable entirely,
+    # or a comma list of TaskType values (e.g. "code"). Measured: Qwen-0.5B
+    # passes 3/3 local code tasks, so preflight-escalating CODE burns ~1.2k
+    # remote tokens for answers we already had.
     always_escalate: set[TaskType] = field(
         default_factory=lambda: {TaskType.CODE}
     )

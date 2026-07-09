@@ -1,0 +1,28 @@
+[
+  {"task_id": "math_01", "prompt": "What is 17 * 24? Answer with only the number."},
+  {"task_id": "math_02", "prompt": "A train travels 240 km in 3 hours. What is its average speed in km/h? Answer with only the number."},
+  {"task_id": "math_03", "prompt": "If x + 7 = 22, what is x? Answer with only the number."},
+
+  {"task_id": "code_01", "prompt": "Write a Python function `is_palindrome(s)` that returns True if the string s is a palindrome, ignoring case and non-alphanumeric characters."},
+  {"task_id": "code_02", "prompt": "Write a Python function `fizzbuzz(n)` that returns a list of strings for 1..n following standard FizzBuzz rules."},
+  {"task_id": "code_03", "prompt": "This Python function has a bug. Fix it and return the corrected code:\n\ndef average(nums):\n    return sum(nums) / len(nums) + 1"},
+
+  {"task_id": "summ_01", "prompt": "Summarize in one sentence: Photosynthesis is the process by which green plants use sunlight to synthesize foods from carbon dioxide and water, generating oxygen as a byproduct."},
+  {"task_id": "summ_02", "prompt": "Summarize the causes of the 2008 financial crisis in exactly 3 bullet points."},
+
+  {"task_id": "ner_01", "prompt": "List each named entity and its type, one per line: Tim Cook announced that Apple will open a new office in Berlin next March."},
+  {"task_id": "ner_02", "prompt": "List each named entity and its type, one per line: Marie Curie was born in Warsaw and later worked at the University of Paris."},
+
+  {"task_id": "cls_01", "prompt": "Classify the sentiment as positive, negative, or neutral. Answer with one word: 'The battery life is terrible and it overheats constantly.'"},
+  {"task_id": "cls_02", "prompt": "Classify the sentiment as positive, negative, or neutral. Answer with one word: 'The package arrived on Tuesday.'"},
+
+  {"task_id": "qa_01", "prompt": "What is the capital of Australia? Answer with only the city name."},
+  {"task_id": "qa_02", "prompt": "How many sides does a hexagon have? Answer with only the number."},
+  {"task_id": "qa_03", "prompt": "What is the chemical symbol for gold? Answer with only the symbol."},
+
+  {"task_id": "ext_01", "prompt": "Extract the email address from this text and return only the email address: Please contact our support desk at help@acme-corp.io before Friday."},
+  {"task_id": "ext_02", "prompt": "Extract the year from this sentence and return only the year: The Treaty of Versailles was signed in 1919 after the war ended."},
+
+  {"task_id": "rsn_01", "prompt": "All roses are flowers. Some flowers fade quickly. Does it necessarily follow that some roses fade quickly? Answer yes or no."},
+  {"task_id": "rsn_02", "prompt": "Sarah is taller than Mike. Mike is taller than Ana. Who is the shortest? Answer with only the name."}
+]

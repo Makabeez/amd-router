@@ -91,15 +91,40 @@ def _build_router():
         allowed = [os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gemma-4-31b-it")]
     remote = HarnessRemoteBackend(allowed_models=allowed)
 
+    # AMD_ALWAYS_ESC_ENV: ALWAYS_ESCALATE="" disables preflight escalation;
+    # otherwise comma list of TaskType values, e.g. "code" or "code,reasoning".
+    from src.classifiers.heuristic import TaskType as _TT
+    _ae_raw = os.environ.get("ALWAYS_ESCALATE", "")  # measured: local passes 3/3 code.strip()
+    _ae = set()
+    for _tok in (t.strip().lower() for t in _ae_raw.split(",") if t.strip()):
+        try:
+            _ae.add(_TT(_tok))
+        except ValueError:
+            raise ValueError(f"unknown TaskType in ALWAYS_ESCALATE: {_tok!r}")
+    print(f"[router] always_escalate={sorted(t.value for t in _ae)}", file=sys.stderr)
+
     policy = ThresholdPolicy(
         min_confidence=float(os.environ.get("MIN_CONFIDENCE", "0.65")),
         preflight_skip_local_above=float(os.environ.get("PREFLIGHT_SKIP_ABOVE", "0.9")),
+        always_escalate=_ae,
     )
     config = HybridConfig(
         n_samples=int(os.environ.get("N_SAMPLES", "0")),
         local_max_tokens=int(os.environ.get("LOCAL_MAX_TOKENS", "512")),
         remote_max_tokens=int(os.environ.get("REMOTE_MAX_TOKENS", "1024")),
     )
+    # AMD_POLICY_ENV: swap escalation policy for baseline measurement.
+    _pol = os.environ.get("ESCALATION_POLICY", "threshold").strip().lower()
+    if _pol == "always_local":
+        from src.escalation.policies import AlwaysLocalPolicy
+        policy = AlwaysLocalPolicy()
+    elif _pol == "always_remote":
+        from src.escalation.policies import AlwaysRemotePolicy
+        policy = AlwaysRemotePolicy()
+    elif _pol not in ("threshold", ""):
+        raise ValueError(f"unknown ESCALATION_POLICY={_pol!r}")
+    print(f"[router] escalation policy: {_pol}", file=sys.stderr)
+
     return HybridRouter(local=local, remote=remote, policy=policy, config=config)
 
 

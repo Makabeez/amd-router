@@ -1,0 +1,5 @@
+[
+  {"task_id": "t1", "prompt": "What is 2+2? Answer with only the number."},
+  {"task_id": "t2", "prompt": "Summarize the causes of the 2008 financial crisis in 3 bullet points."},
+  {"task_id": "t3", "prompt": "Write a Python function that returns the nth Fibonacci number."}
+]

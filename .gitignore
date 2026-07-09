@@ -20,3 +20,4 @@ bench_results.json
 calibration.json
 traces.jsonl
 predictions.jsonl
+_ctest/

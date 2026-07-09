@@ -24,6 +24,7 @@ class HarnessRemoteBackend(Backend):
         self._api_key = api_key
         # Cache one FireworksBackend per model_id (client reuse).
         self._clients: dict[str, FireworksBackend] = {}
+        self._dead: set[str] = set()   # models that 404/400 - never retry
 
     def _client(self, model_id: str) -> FireworksBackend:
         if model_id not in self._clients:
@@ -44,18 +45,50 @@ class HarnessRemoteBackend(Backend):
         difficulty: float = 0.5,
         **kwargs: Any,
     ) -> GenerationResult:
-        # Pick a model from the allowed list for this task.
+        # AMD_MODEL_FALLBACK: ordered candidates. A model may be undeployed
+        # (Fireworks on-demand -> 404). Never let that collapse to local.
         if task_type is not None:
-            model_id = self.selector.select(task_type, difficulty)
+            first = self.selector.select(task_type, difficulty)
         else:
-            model_id = self.selector.cheapest
+            first = self.selector.cheapest
 
-        result = self._client(model_id).generate(
-            prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stop=stop,
-            return_logprobs=return_logprobs,
+        candidates = [first] + [
+            m.model_id for m in self.selector._by_size if m.model_id != first
+        ]
+
+        last_err: Exception | None = None
+        for model_id in candidates:
+            if model_id in self._dead:
+                continue
+            try:
+                result = self._client(model_id).generate(
+                    prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stop=stop,
+                    return_logprobs=return_logprobs,
+                )
+            except Exception as e:
+                last_err = e
+                code = getattr(getattr(e, "response", None), "status_code", None)
+                # 404/400 = model not deployed or unknown -> permanently skip it.
+                if code in (400, 404):
+                    self._dead.add(model_id)
+                    print(f"[router] model {model_id} unavailable ({code}); "
+                          f"falling back", flush=True)
+                    continue
+                # 401/403 = auth problem, no other model will help.
+                if code in (401, 403):
+                    raise
+                # transient (429/5xx/timeout): try the next model rather than die.
+                print(f"[router] model {model_id} failed ({type(e).__name__}); "
+                      f"trying next", flush=True)
+                continue
+
+            result.raw["selected_model"] = model_id
+            return result
+
+        raise RuntimeError(
+            f"all remote models exhausted ({len(candidates)} tried); "
+            f"last error: {type(last_err).__name__}: {last_err}"
         )
-        result.raw["selected_model"] = model_id
-        return result

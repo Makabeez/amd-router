@@ -125,7 +125,7 @@ class HybridRouter(Router):
                 # Preflight-escalated (e.g. code) but remote failed. Last resort:
                 # attempt locally so we still emit something for the accuracy gate.
                 decisions.append(
-                    f"remote FAILED preflight ({type(e).__name__}); local last-resort"
+                    f"remote FAILED preflight ({type(e).__name__}: {e}); local last-resort # AMD_REMOTE_ERR"
                 )
                 local_prompt = (
                     format_for_local(prompt, features.type)
@@ -251,7 +251,7 @@ class HybridRouter(Router):
             # Remote failed (timeout, rate limit, etc.). Fall back to the local
             # answer rather than returning nothing — a mediocre answer beats an
             # empty one at the accuracy gate.
-            decisions.append(f"remote FAILED ({type(e).__name__}); falling back to local")
+            decisions.append(f"remote FAILED ({type(e).__name__}: {e}); falling back to local # AMD_REMOTE_ERR")
             return RoutingTrace(
                 prompt=prompt,
                 final_text=local_text,

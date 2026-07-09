@@ -157,6 +157,10 @@ def main() -> None:
 
         try:
             trace = router.route(prompt)
+            _dec = getattr(trace, "decisions", [])
+            print("[" + str(tid) + "] backend=" + str(getattr(trace, "final_backend", "?")) + " remote_tokens=" + str(getattr(trace, "remote_tokens", 0)) + " # AMD_DEBUG_TRACE", file=sys.stderr)
+            for _d in _dec:
+                print("    " + str(_d), file=sys.stderr)
             if _forced:
                 extractor = get_extractor(_forced)
             else:

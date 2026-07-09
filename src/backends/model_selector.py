@@ -19,6 +19,7 @@ code model for code tasks, and a larger model only when needed.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 
@@ -104,8 +105,9 @@ class ModelSelector:
         if task_type in (TaskType.CODE,) and self._code_models:
             return self._code_models[0].model_id
 
-        # Prefer Gemma for the bonus + general capability
-        if self._gemma_models:
+        # Gemma is on-demand on Fireworks: undeployed -> 404. Chasing the bonus
+        # by default risks the 80% accuracy gate. Opt in with PREFER_GEMMA=1.
+        if self._gemma_models and os.environ.get("PREFER_GEMMA") == "1":
             if difficulty >= 0.7 and len(self._gemma_models) > 1:
                 # harder task → larger Gemma
                 return self._gemma_models[-1].model_id

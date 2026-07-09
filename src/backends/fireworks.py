@@ -44,6 +44,9 @@ class FireworksBackend(Backend):
         base_url: str | None = None,
         timeout: float = 30.0,
     ) -> None:
+        # AMD_ID_NORMALIZE: harness may inject bare IDs; Fireworks wants paths.
+        if model and "/" not in model:
+            model = f"accounts/fireworks/models/{model}"
         self.name = f"fireworks:{model}"
         self.model = model
         self.api_key = api_key or os.environ.get("FIREWORKS_API_KEY")
@@ -108,7 +111,13 @@ class FireworksBackend(Backend):
         data = r.json()
 
         choice = data["choices"][0]
-        text = choice["message"]["content"] or ""
+        # AMD_REASONING_FIX: reasoning models (minimax-m3, glm, kimi) may return
+        # only `reasoning_content` and no `content` when they run out of tokens
+        # mid-think. Never silently return "".
+        msg = choice.get("message", {})
+        text = msg.get("content") or ""
+        if not text:
+            text = msg.get("reasoning_content") or ""
         usage = data.get("usage", {})
 
         logprobs: list[float] | None = None
